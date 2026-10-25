@@ -1,0 +1,44 @@
+
+name: Build DEVLIN OS ESP8266
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'DEVLIN_SOURCE_ESP8266.zip'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Extract source
+        run: unzip -q DEVLIN_SOURCE_ESP8266.zip -d source
+
+      - name: Build firmware
+        working-directory: source/DEVLIN_OS_ESP8266_ESP12F_SSD1306
+        run: pio run -e devlin_esp8266
+
+      - name: Package firmware
+        run: |
+          mkdir -p release
+          cp source/DEVLIN_OS_ESP8266_ESP12F_SSD1306/.pio/build/devlin_esp8266/firmware.bin release/DEVLIN_OS_ESP12F_SSD1306_4MB.bin
+          test -s release/DEVLIN_OS_ESP12F_SSD1306_4MB.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DEVLIN_OS_ESP8266_FIRMWARE
+          path: release/DEVLIN_OS_ESP12F_SSD1306_4MB.bin
+          
