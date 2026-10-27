@@ -1,0 +1,67 @@
+name: DEVLIN OS ESP8266 Rebuild V3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'platformio.ini'
+      - '.github/workflows/DEVLIN_REBUILD_V3_SINGLE.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and package ESP8266 firmware
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade pip platformio
+
+      - name: Validate source and configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s platformio.ini || { echo 'ERROR: platformio.ini is missing or empty'; exit 1; }
+          test -s src/main.cpp || { echo 'ERROR: src/main.cpp is missing or empty'; exit 1; }
+          grep -q '^\[env:devlin_esp8266\]' platformio.ini || { echo 'ERROR: PlatformIO environment devlin_esp8266 was not found'; exit 1; }
+
+      - name: Compile firmware
+        run: pio run -e devlin_esp8266
+
+      - name: Verify and package firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_DIR="$GITHUB_WORKSPACE/.pio/build/devlin_esp8266"
+          test -s "$BUILD_DIR/firmware.bin" || { echo 'ERROR: firmware.bin was not produced'; exit 1; }
+          mkdir -p release
+          cp "$BUILD_DIR/firmware.bin" release/DEVLIN_OS_ESP12F_SSD1306_4MB.bin
+          sha256sum release/DEVLIN_OS_ESP12F_SSD1306_4MB.bin > release/SHA256SUMS.txt
+          cat > release/FLASH_INSTRUCTIONS.txt <<'TXT'
+          DEVLIN OS V2.1 - ESP8266 / ESP-12F / 4 MB / SSD1306
+          Firmware: DEVLIN_OS_ESP12F_SSD1306_4MB.bin
+          Flash address: 0x00000
+          Verify the board model and wiring before flashing. Back up existing firmware first.
+          Only flash after this workflow succeeds and the firmware artifact is available.
+          TXT
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVLIN_OS_ESP12F_SSD1306_4MB_REBUILD_V3
+          path: release/*
+          if-no-files-found: error
+          retention-days: 14
